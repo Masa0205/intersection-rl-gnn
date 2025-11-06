@@ -130,7 +130,7 @@ class SumoEnv:
                 last_veh = vehicles[-1]
                 dist = traci.lane.getLength(lane_id) - traci.vehicle.getLanePosition(last_veh)
                 if dist <= MARGIN:
-                    last_veh = traci.vehicle.setSpeed(last_veh,0)
+                    traci.vehicle.setSpeed(last_veh,0)
                     traci.vehicle.setColor(last_veh, (0,255,0))
 
     def step(self, actions):
