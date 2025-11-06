@@ -177,6 +177,7 @@ class Agent:
         self.actor_old.load_state_dict(self.actor.state_dict())
         #バッファーを空にする
         self.buffer.clear()
+        return loss.mean().item()
 
     def save(self, timestamp):
         actor_path = f"trained_model/actor_{timestamp}.pth"
