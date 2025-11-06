@@ -178,94 +178,12 @@ class Agent:
         #バッファーを空にする
         self.buffer.clear()
 
-    def get_reward(self):
-        in_lanes = []
-        in_veh = []
-        in_num = 0
-        for lane in traci.lane.getIDList():
-            if ":" in lane:
-                in_veh += traci.lane.getLastStepVehicleIDs(lane)
-                in_num += traci.lane.getLastStepVehicleNumber(lane)
-
-        r = - in_num * 0.1
-        return r
-        
-
-    def get_state(self):
-        SPEED = 5
-        #各車線の特徴量ベクトル
-        #流入車線：[車両密度,平均待ち時間,平均速度]
-        #流出車線：[車両密度,平均待ち時間,平均速度]
-        obs_len = 50
-        jx, jy = traci.junction.getPosition(self.id)
-        state = []
-        in_vehicles = []
-        in_target_veh = []
-        out_vehicles = []
-        out_target_veh = []
-        #流入車線
-        for i, edgeID in enumerate(self.lane_info["incoming"]):
-            in_vehicles = traci.edge.getLastStepVehicleIDs(edgeID)
-            in_target_veh = []
-            for veh in in_vehicles:
-                
-                x, y = traci.vehicle.getPosition(veh)
-                dis = np.sqrt((x - jx)**2 + (y - jy)**2)
-                if dis <= obs_len:
-                    in_target_veh.append(veh)
-            if len(in_target_veh) > 0:
-                #車両密度
-                state.append(len(in_target_veh) / obs_len)
-
-                vel = 0
-                wait = 0
-                for veh in in_target_veh:
-                    vel += traci.vehicle.getSpeed(veh)
-                    wait += traci.vehicle.getWaitingTime(veh)
-                #平均待ち時間
-                state.append(wait / len(in_target_veh))
-                #平均速度
-                state.append((vel / len(in_target_veh)) / SPEED)
-            #print(f"incoming-{i}-state:{in_state[i]}")
-            else:
-                for _ in range(3):
-                    state.append(0)
-        
-        #流出車線
-        for i, edgeID in enumerate(self.lane_info["outgoing"]):
-            out_vehicles = traci.edge.getLastStepVehicleIDs(edgeID)
-            out_target_veh = []
-            for veh in out_vehicles:
-                
-                x, y = traci.vehicle.getPosition(veh)
-                dis = np.sqrt((x - jx)**2 + (y - jy)**2)
-                if dis <= obs_len:
-                    out_target_veh.append(veh)
-            if len(out_target_veh) > 0:
-                #車両密度
-                state.append(len(out_target_veh) / obs_len)
-
-                vel = 0
-                wait = 0
-                for veh in out_target_veh:
-                    vel += traci.vehicle.getSpeed(veh)
-                    wait += traci.vehicle.getWaitingTime(veh)
-                #平均待ち時間
-                state.append(wait / len(out_target_veh))
-                #平均速度
-                state.append((vel / len(out_target_veh)) / SPEED)
-            #print(f"outgoing-{i}-state:{out_state[i]}")
-            else:
-                for _ in range(3):
-                    state.append(0)
-        print("s",state)
-        return state
-
-    
-
-    def save(self, path):
-        torch.save(self.actor.state_dict(), path)
-        torch.save(self.critic.state_dict(), path)
+    def save(self, timestamp):
+        actor_path = f"trained_model/actor_{timestamp}.pth"
+        critic_path = f"trained_model/critic_{timestamp}.pth"
+        torch.save(self.actor.state_dict(), actor_path)
+        torch.save(self.critic.state_dict(), critic_path)
+        print("モデルを保存しました")
 
     def load(self, path):
         self.actor.load_state_dict(torch.load(path))
