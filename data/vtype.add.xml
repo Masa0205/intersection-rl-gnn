@@ -1,0 +1,6 @@
+<additional>
+    <vType id="block_car" color="255,0,0" jmIgnoreJunctionFoeProb="1" />
+
+    <vType id="normal_car" color="0,0,255" />
+           
+</additional>

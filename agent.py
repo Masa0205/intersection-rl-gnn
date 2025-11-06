@@ -93,8 +93,10 @@ class Agent:
 
         self.id = id
         self.lane_info = lane_info
-        self.state_dim = len(self.lane_info["incoming"]) + len(self.lane_info["outgoing"])
+        self.state_dim = 24
+        
         self.action_size = len(self.lane_info["incoming"])
+        #print("s&a",self.state_dim, self.action_size)
         self.device = "cpu"
         if torch.cuda.is_available():
             self.device = "cuda"
@@ -196,8 +198,7 @@ class Agent:
         #流出車線：[車両密度,平均待ち時間,平均速度]
         obs_len = 50
         jx, jy = traci.junction.getPosition(self.id)
-        in_state = np.zeros((len(self.lane_info["incoming"]),3),dtype=np.float32)
-        out_state = np.zeros((len(self.lane_info["outgoing"]),3),dtype=np.float32)
+        state = []
         in_vehicles = []
         in_target_veh = []
         out_vehicles = []
@@ -205,15 +206,16 @@ class Agent:
         #流入車線
         for i, edgeID in enumerate(self.lane_info["incoming"]):
             in_vehicles = traci.edge.getLastStepVehicleIDs(edgeID)
+            in_target_veh = []
             for veh in in_vehicles:
-                in_target_veh = []
+                
                 x, y = traci.vehicle.getPosition(veh)
                 dis = np.sqrt((x - jx)**2 + (y - jy)**2)
                 if dis <= obs_len:
                     in_target_veh.append(veh)
             if len(in_target_veh) > 0:
                 #車両密度
-                in_state[i, 0] = len(in_target_veh) / obs_len
+                state.append(len(in_target_veh) / obs_len)
 
                 vel = 0
                 wait = 0
@@ -221,24 +223,27 @@ class Agent:
                     vel += traci.vehicle.getSpeed(veh)
                     wait += traci.vehicle.getWaitingTime(veh)
                 #平均待ち時間
-                in_state[i,1] = wait / len(in_target_veh)
+                state.append(wait / len(in_target_veh))
                 #平均速度
-                in_state[i,2] = (vel / len(in_target_veh)) / SPEED
+                state.append((vel / len(in_target_veh)) / SPEED)
             #print(f"incoming-{i}-state:{in_state[i]}")
+            else:
+                for _ in range(3):
+                    state.append(0)
         
         #流出車線
-        for i, edgeID in enumerate(self.lane_info["incoming"]):
+        for i, edgeID in enumerate(self.lane_info["outgoing"]):
             out_vehicles = traci.edge.getLastStepVehicleIDs(edgeID)
-            
+            out_target_veh = []
             for veh in out_vehicles:
-                out_target_veh = []
+                
                 x, y = traci.vehicle.getPosition(veh)
                 dis = np.sqrt((x - jx)**2 + (y - jy)**2)
                 if dis <= obs_len:
                     out_target_veh.append(veh)
             if len(out_target_veh) > 0:
                 #車両密度
-                out_state[i, 0] = len(out_target_veh) / obs_len
+                state.append(len(out_target_veh) / obs_len)
 
                 vel = 0
                 wait = 0
@@ -246,12 +251,15 @@ class Agent:
                     vel += traci.vehicle.getSpeed(veh)
                     wait += traci.vehicle.getWaitingTime(veh)
                 #平均待ち時間
-                out_state[i,1] = wait / len(out_target_veh)
+                state.append(wait / len(out_target_veh))
                 #平均速度
-                out_state[i,2] = (vel / len(out_target_veh)) / SPEED
+                state.append((vel / len(out_target_veh)) / SPEED)
             #print(f"outgoing-{i}-state:{out_state[i]}")
-        
-        return np.vstack((in_state, out_state))
+            else:
+                for _ in range(3):
+                    state.append(0)
+        print("s",state)
+        return state
 
     
 

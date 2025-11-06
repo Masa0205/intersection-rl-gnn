@@ -95,7 +95,7 @@ class SumoEnv:
     
     def make_random_route(self, step, num):
         depart = random.choice(list(self.roots.keys()))
-        arrive = random.choice(self.roots[depart])
+        arrive = self.roots[depart]
         traci.route.add(f"random_route_{step}_{num}", [depart, arrive])   
         return f"random_route_{step}_{num}"
     
@@ -106,21 +106,23 @@ class SumoEnv:
         return shape
     
 
-    def set_speed(self, priority):
+    def set_speed(self):
         MARGIN = 3
         for lane_id in traci.lane.getIDList():
             if ":" in lane_id:
                 continue
-            traci.polygon.setColor(lane_id,(0,0,0,0))
+            #traci.polygon.setColor(lane_id,(0,0,0,0))
 
-            if lane_id in priority.values():
-                
+            if lane_id in self.priority.values():
+                print(f"priorityLane:{lane_id}")
+                """
                 try:
                     print(f"set polygon color {lane_id}")
                     traci.polygon.setColor(lane_id,(0,255,0,150))
                     traci.polygon.setFilled(lane_id, True)
                 except traci.TraCIException as e:
                     print(e)
+                """
             else:
                 vehicles = traci.lane.getLastStepVehicleIDs(lane_id)
                 if not vehicles:
@@ -129,13 +131,16 @@ class SumoEnv:
                 dist = traci.lane.getLength(lane_id) - traci.vehicle.getLanePosition(last_veh)
                 if dist <= MARGIN:
                     last_veh = traci.vehicle.setSpeed(last_veh,0)
+                    traci.vehicle.setColor(last_veh, (0,255,0))
 
     def step(self, actions):
         for intersection in self.intersections:
             priority_edge = self.lane_dict[intersection]["incoming"][actions[intersection]]
             priority_lane = f"{priority_edge}_0"
             self.priority[intersection] = priority_lane
+        print("pritority", self.priority)
         self.set_speed()
+        traci.simulationStep()
             
 
        

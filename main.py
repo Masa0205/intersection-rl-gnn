@@ -4,7 +4,7 @@ import traci
 from collections import deque
 import random
 from env2 import SumoEnv
-from agent import ReplayBuffer, QNet, Agent
+from agent import Agent
 
 def main():
     episodes = 10000
@@ -50,14 +50,17 @@ def main():
             
             for id, agent in agents.items():
                 actions[id] = agent.get_action(states[id])
-            
-            rewards, next_state, done = env.step(actions)
-            state = next_state
-            print(f"action:{actions}")
-            print(f"reward:{rewards}")
+            env.step(actions)
+            for id, agent in agents.items():
+                states[id] = agent.get_state()
+            #rewards, next_state, done = env.step(actions)
+            #state = next_state
+            #print(f"action:{actions}")
+            #print(f"state:{states}")
             if current_time >= time_limit:
                 done = True
             step += 1
+            
         traci.close()
 
 
