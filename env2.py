@@ -25,7 +25,7 @@ class SumoEnv:
                       "-gneE62": ["-gneE4","gneE60"],
                       "-gneE63": ["-gneE4","gneE60"]}
 
-        self.SPEED = 5
+        self.SPEED = 10
         self.DISTANCE = self.SPEED * 10
         self.step_num = 10
         self.net = sumolib.net.readNet('data/intersection.net.xml')
@@ -152,11 +152,10 @@ class SumoEnv:
                     traci.vehicle.setColor(last_veh, (0,255,0))
 
     def get_state(self, intersection):
-        SPEED = 5
         #各車線の特徴量ベクトル
         #流入車線：[車両密度,平均待ち時間,平均速度]
         #流出車線：[車両密度,平均待ち時間,平均速度]
-        obs_len = 50
+        obs_len = 30
         
         
         jx, jy = traci.junction.getPosition(intersection)
@@ -175,7 +174,7 @@ class SumoEnv:
                     in_target_veh.append(veh)
             if len(in_target_veh) > 0:
                 #車両密度
-                state.append(len(in_target_veh) / obs_len)
+                state.append(len(in_target_veh)*5 / obs_len)
 
                 vel = 0
                 wait = 0
@@ -185,7 +184,7 @@ class SumoEnv:
                 #平均待ち時間
                 state.append(wait / len(in_target_veh))
                 #平均速度
-                state.append((vel / len(in_target_veh)) / SPEED)
+                state.append((vel / len(in_target_veh)) / self.SPEED)
             #print(f"incoming-{i}-state:{in_state[i]}")
             else:
                 for _ in range(3):
@@ -203,7 +202,7 @@ class SumoEnv:
                     out_target_veh.append(veh)
             if len(out_target_veh) > 0:
                 #車両密度
-                state.append(len(out_target_veh) / obs_len)
+                state.append(len(out_target_veh)*5 / obs_len)
 
                 vel = 0
                 wait = 0
@@ -213,7 +212,7 @@ class SumoEnv:
                 #平均待ち時間
                 state.append(wait / len(out_target_veh))
                 #平均速度
-                state.append((vel / len(out_target_veh)) / SPEED)
+                state.append((vel / len(out_target_veh)) / self.SPEED)
             #print(f"outgoing-{i}-state:{out_state[i]}")
             else:
                 for _ in range(3):
@@ -236,6 +235,7 @@ class SumoEnv:
         return True  # 全車停止 -> 終了
 
     def step(self, actions, rewards, states):
+        done_count = 0
         for intersection in self.intersections:
             priority_edge = self.lane_dict[intersection]["incoming"][actions[intersection]]
             priority_lane = f"{priority_edge}_0"
@@ -264,12 +264,19 @@ class SumoEnv:
                     throuput += traci.lanearea.getLastStepVehicleNumber(detector)
                 reward_sum[intersection] += throuput
                 state_sum[intersection] += self.get_state(intersection)
+            
+            done_frag = self.done_check(current_time)
+            if done_frag:
+                done_count += 1
         for i in self.intersections:
-            rewards[i] = reward_sum[i] / self.step_num
+            rewards[i] = reward_sum[i] / self.step_num + 0.1
             states[i] = state_sum[i] / self.step_num
         #print("rewards",rewards)
         #print("states", states)
-        done = self.done_check(current_time)
+        if done_count == self.step_num:
+            done = True
+        else:
+            done = False
         #print("done", done)
         
         return rewards, states, done

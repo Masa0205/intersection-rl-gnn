@@ -91,9 +91,9 @@ class Agent:
     def __init__(self, id, lane_info):
         self.gamma = 0.99
         self.eps_clip = 0.2
-        self.K_epochs = 80
-        self.lr_actor = 0.0003
-        self.lr_critic = 0.001
+        self.K_epochs = 20
+        self.lr_actor = 1e-3
+        self.lr_critic = 1e-4
 
         self.id = id
         self.lane_info = lane_info
@@ -150,8 +150,12 @@ class Agent:
             rewards.insert(0, discounted_reward)
             
         #報酬の正規化、計算後の報酬の平均を使って標準偏差1になるように正規化
+        
         rewards = torch.tensor(rewards, dtype=torch.float32).to(self.device)
-        rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-7)
+        if rewards.std() == 0:
+            rewards = rewards - rewards.mean()
+        else:
+            rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-7)
 
         #各要素をテンソル化
         old_states = torch.squeeze(torch.stack(self.buffer.states, dim=0)).detach().to(self.device)
