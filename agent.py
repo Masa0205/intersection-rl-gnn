@@ -38,13 +38,17 @@ class Actor(nn.Module):
 
         self.actor.apply(self.init_weights)
     #方策に従って情報を収集するact
-    def act(self, s):
+    def act(self, s, play):
         #actorNetから確率分布出力
         action_probs = self.actor(s)
         #確率操作用dist
         dist = Categorical(action_probs)
-        action = dist.sample()
-        action_logprobs = dist.log_prob(action)
+        if play:
+            action = torch.argmax(action_probs, dim=-1)
+            action_logprobs = dist.log_prob(action)
+        else:
+            action = dist.sample()
+            action_logprobs = dist.log_prob(action)
 
         return action, action_logprobs
     
@@ -117,15 +121,21 @@ class Agent:
 
         self.MseLoss = nn.MSELoss()
 
-    def get_action(self, state):
-        with torch.no_grad():
-            state = torch.FloatTensor(state).to(self.device)
-            action, action_logprobs = self.actor.act(state)
-            s_val = self.critic.forward(state)
-        self.buffer.states.append(state)
-        self.buffer.actions.append(action)
-        self.buffer.logprobs.append(action_logprobs)
-        self.buffer.state_values.append(s_val)
+    def get_action(self, state, play=False):
+        if not play:
+            with torch.no_grad():
+                state = torch.FloatTensor(state).to(self.device)
+                action, action_logprobs = self.actor.act(state, play)
+                s_val = self.critic.forward(state)
+            self.buffer.states.append(state)
+            self.buffer.actions.append(action)
+            self.buffer.logprobs.append(action_logprobs)
+            self.buffer.state_values.append(s_val)
+        else:
+            with torch.no_grad():
+                state = torch.FloatTensor(state).to(self.device)
+                action, action_logprobs = self.actor.act(state, play)
+                s_val = self.critic.forward(state)
         return action.item()
 
     def train(self):
