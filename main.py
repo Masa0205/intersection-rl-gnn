@@ -5,7 +5,7 @@ from collections import deque
 from datetime import datetime
 from env2 import SumoEnv
 from agent import Agent
-from util import r_graph, loss_graph
+from util import r_graph, loss_graph, t_graph
 def main():
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     episodes = 10000
@@ -20,6 +20,7 @@ def main():
     rewards = {}
     r_total = {i: [] for i in intersections}
     loss_total = {i: [] for i in intersections}
+    t_totals = []
     t_total = 0
     print_r = {}
     print_loss = {}
@@ -69,19 +70,23 @@ def main():
                 for i in intersections:
                     print_r[i] = r_total[i][-1]
                     print_loss[i] = loss_total[i][-1]
+                t_totals.append(t_total / print_interval)
                 print(f"eps: {episode} r: {print_r} loss: {print_loss} t: {t_total / print_interval}")
                 t_total = 0
             traci.close()
+        r_graph(r_total, timestamp)
+        loss_graph(loss_total, timestamp)
+        t_graph(t_totals, timestamp)
+        for id, agent in agents.items():
+            agent.save(id, timestamp)
     except:
         r_graph(r_total, timestamp)
         loss_graph(loss_total, timestamp)
+        t_graph(t_totals, timestamp)
         for id, agent in agents.items():
             agent.save(id, timestamp)
         print("errorで停止しました")  
-    r_graph(r_total, timestamp)
-    loss_graph(loss_total, timestamp)
-    for id, agent in agents.items():
-        agent.save(id, timestamp)
+    
 
 if __name__ == "__main__":
     env = SumoEnv()
