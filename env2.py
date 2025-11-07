@@ -223,18 +223,17 @@ class SumoEnv:
         return state
 
     def done_check(self, current_time):
-        done = False
-        vehicles = []
         vehicles = traci.vehicle.getIDList()
+        # タイムアップ
+        if current_time >= self.time_limit:
+            return True
+        # 車が全て停止（速度 < 0.1）していれば終了
         if len(vehicles) == 0:
-            return done
+            return True
         for veh in vehicles:
-            if not traci.vehicle.getSpeed(veh) < 0.1:
-                if current_time >= 3600:
-                    done = True
-                return done
-        done = True
-        return done 
+            if traci.vehicle.getSpeed(veh) >= 0.1:
+                return False  # まだ動いている車がある -> 継続
+        return True  # 全車停止 -> 終了
 
     def step(self, actions, rewards, states):
         for intersection in self.intersections:
@@ -248,16 +247,16 @@ class SumoEnv:
         for i in range(self.step_num):
             traci.simulationStep()
             current_time = traci.simulation.getTime()
-            veh_rate = random.random() * 5
+            veh_rate = random.random() * 3
             veh_num = int(veh_rate)
-            for i in range(veh_num):
+            for j in range(veh_num):
                 if random.random() < self.block_veh_rate:
                     vtype = "block_car"
                     #print("block")
                 else:
                     vtype = "normal_car"
                     #print("normal")
-                self.make_vehicle(f"vehicle_{current_time}_{i}", self.make_random_route(current_time, i), current_time, vtype)
+                self.make_vehicle(f"vehicle_{current_time}_{j}", self.make_random_route(current_time, j), current_time, vtype)
 
             for intersection in self.intersections:
                 throuput = 0

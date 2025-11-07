@@ -177,16 +177,20 @@ class Agent:
         self.actor_old.load_state_dict(self.actor.state_dict())
         #バッファーを空にする
         self.buffer.clear()
+        #print("loss", loss)
         return loss.mean().item()
 
-    def save(self, timestamp):
-        actor_path = f"trained_model/actor_{timestamp}.pth"
-        critic_path = f"trained_model/critic_{timestamp}.pth"
+    def save(self, id, timestamp):
+        actor_path = f"trained_model/actor_{id}_{timestamp}.pth"
+        critic_path = f"trained_model/critic_{id}_{timestamp}.pth"
         torch.save(self.actor.state_dict(), actor_path)
         torch.save(self.critic.state_dict(), critic_path)
-        print("モデルを保存しました")
+        print(f"{id}:モデルを保存しました")
 
-    def load(self, path):
-        self.actor.load_state_dict(torch.load(path))
-        self.critic.load_state_dict(torch.load(path))
+    def load(self, id, date):
+        actor_path = f"trained_model/actor_{id}_{date}.pth"
+        critic_path = f"trained_model/critic_{id}_{date}.pth"
+        self.actor.load_state_dict(torch.load(actor_path))
+        self.critic.load_state_dict(torch.load(critic_path))
+        print(f"{id}:モデルを読み込みました")
         
