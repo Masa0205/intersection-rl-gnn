@@ -49,7 +49,7 @@ def main():
         while not done:
             
             for id, agent in agents.items():
-                actions[id] = agent.get_action(states[id])
+                actions[id] = agent.get_action(states[id], play=True)
 
             rewards, next_states, done = env.step(actions, rewards, next_states)
             for id, agent in agents.items():
