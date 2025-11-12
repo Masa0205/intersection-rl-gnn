@@ -91,13 +91,13 @@ class Agent:
     def __init__(self, id, lane_info):
         self.gamma = 0.99
         self.eps_clip = 0.2
-        self.K_epochs = 20
-        self.lr_actor = 1e-3
+        self.K_epochs = 10
+        self.lr_actor = 3e-4
         self.lr_critic = 1e-4
 
         self.id = id
         self.lane_info = lane_info
-        self.state_dim = 24
+        self.state_dim = 12
         
         self.action_size = len(self.lane_info["incoming"])
         #print("s&a",self.state_dim, self.action_size)

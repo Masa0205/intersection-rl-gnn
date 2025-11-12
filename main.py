@@ -6,30 +6,40 @@ from datetime import datetime
 from env2 import SumoEnv
 from agent import Agent
 from util import r_graph, loss_graph, t_graph
+import random
+import json
+
+
+
 def main():
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    episodes = 10000
+    episodes = 5000
     rollout_interval = 50
-    print_interval = 100
+    print_interval = 10
     intersections = env.intersections
     lane_dict = env.lane_dict
     agents = {}
-    states = {}
-    next_states = {}
-    actions = {}
-    rewards = {}
     r_total = {i: [] for i in intersections}
     loss_total = {i: [] for i in intersections}
     t_totals = []
     t_total = 0
     print_r = {}
     print_loss = {}
+    random.seed(42)
+    vehicle_num = 1000
     #交差点の数だけエージェントインスタンス化
     for intersection in intersections:
         agents[intersection] = Agent(id=intersection,lane_info=lane_dict[intersection])
     print("agents:", agents)
+
+    
     try:
         for episode in range(episodes):
+            states = {}
+            next_states = {}
+            actions = {i: random.randint(0,3) for i in intersections}
+            print(actions)
+            rewards = {}
             r_sum = {i: 0.0 for i in intersections}
             loss_sum = {i: 0.0 for i in intersections}
             train_step = 0
@@ -38,11 +48,14 @@ def main():
             env.reset()
             #sumo.get_shape()
             #grid_frag = False
-            
+            #車両生成
+            for i in range(vehicle_num):
+                depart_time = random.randint(0,500)
+                env.make_vehicle(f"vehicle_{i}", depart_time, i)
             
             #初期状態
             for intersection in intersections: #.items()でkeyと要素を両方と取得
-                states[intersection] = env.get_state(intersection)
+                states[intersection] = env.get_state(intersection, actions[intersection])
             #優先表示用ポリゴン
             #env.define_polygon()
             while not done:
@@ -79,13 +92,13 @@ def main():
         t_graph(t_totals, timestamp)
         for id, agent in agents.items():
             agent.save(id, timestamp)
-    except:
+    except TimeoutError as e:
         r_graph(r_total, timestamp)
         loss_graph(loss_total, timestamp)
         t_graph(t_totals, timestamp)
         for id, agent in agents.items():
             agent.save(id, timestamp)
-        print("errorで停止しました")  
+        print(f"error: {e}")  
     
 
 if __name__ == "__main__":

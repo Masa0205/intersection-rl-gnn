@@ -6,18 +6,15 @@ from datetime import datetime
 from env2 import SumoEnv
 from agent import Agent
 from util import r_graph
+import random
 def main():
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    episodes = 3
+    episodes = 1
     rollout_interval = 50
     print_interval = 10
     intersections = env.intersections
     lane_dict = env.lane_dict
     agents = {}
-    states = {}
-    next_states = {}
-    actions = {}
-    rewards = {}
     r_total = {i: [] for i in intersections}
     loss_total = {i: [] for i in intersections}
     t_total = 0
@@ -33,9 +30,14 @@ def main():
     for episode in range(episodes):
         r_sum = {i: 0.0 for i in intersections}
         loss_sum = {i: 0.0 for i in intersections}
+        states = {}
+        next_states = {}
+        actions = {i: random.randint(0,3) for i in intersections}
+        rewards = {}
         train_step = 0
         done = False
         step = 0
+        vehicle_num = 1000
         env.reset(is_gui)
         #sumo.get_shape()
         #grid_frag = False
@@ -43,9 +45,12 @@ def main():
         
         #初期状態
         for intersection in intersections: #.items()でkeyと要素を両方と取得
-            states[intersection] = env.get_state(intersection)
+            states[intersection] = env.get_state(intersection, actions[intersection])
         #優先表示用ポリゴン
         #env.define_polygon()
+        for i in range(vehicle_num):
+                depart_time = random.randint(0,500)
+                env.make_vehicle(f"vehicle_{i}", depart_time, i)
         while not done:
             
             for id, agent in agents.items():

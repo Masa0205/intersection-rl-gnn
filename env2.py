@@ -16,14 +16,14 @@ class SumoEnv:
         else:
             sys.exit("please declare environment variable 'SUMO_HOME'")
         
-        self.roots = {"-gneE64": ["gneE65","gneE61"],
-                      "gneE17": ["gneE61","gneE65"],
-                      "gneE4": ["gneE60","gneE63"],
-                      "-gneE60": ["gneE60","gneE63"],
-                      "-gneE65": ["gneE64", "-gneE17"],
-                      "-gneE61": ["gneE64","-gneE17"],
-                      "-gneE62": ["-gneE4","gneE60"],
-                      "-gneE63": ["-gneE4","gneE60"]}
+        self.roots = {"-gneE64": ["gneE61"],
+                      "gneE17": ["gneE65"],
+                      "gneE4": ["gneE63"],
+                      "-gneE60": ["gneE62"],
+                      "-gneE65": ["-gneE17"],
+                      "-gneE61": ["gneE64"],
+                      "-gneE62": ["gneE60"],
+                      "-gneE63": ["-gneE4"]}
 
         self.SPEED = 10
         self.DISTANCE = self.SPEED * 10
@@ -91,22 +91,31 @@ class SumoEnv:
             sumoBinary = os.path.join(os.environ['SUMO_HOME'], 'bin/sumo-gui')
         else:
             sumoBinary = os.path.join(os.environ['SUMO_HOME'], 'bin/sumo')
-        sumoCmd = [sumoBinary, "-c", "data/intersection.sumocfg",  "--time-to-teleport", "-1"]
-        #,"--ignore-junction-blocker", "0"
+        sumoCmd = [sumoBinary, "-c", "data/intersection.sumocfg"]
+        # ,"--time-to-teleport", "-1"   ,"--ignore-junction-blocker", "0"
         traci.start(sumoCmd)
 
     
 
-    def make_vehicle(self, vehID, routeID, depart_time, vtype):
-        traci.vehicle.add(vehID, routeID, depart=depart_time, typeID=vtype, departLane="best")
+    def make_vehicle(self, vehID, depart_time, i):
+        """
+        if random.random() < self.block_veh_rate:
+            vtype = "block_car"
+            #print("block")
+        else:
+            vtype = "normal_car"
+            #print("normal")
+        """
+        vtype = "block_car"
+        traci.vehicle.add(vehID, self.make_random_route(i), depart=depart_time, typeID=vtype, departLane="best")
         traci.vehicle.setSpeed(vehID, self.SPEED)
         traci.vehicle.setMaxSpeed(vehID, self.SPEED)
     
-    def make_random_route(self, step, num):
+    def make_random_route(self, num):
         depart = random.choice(list(self.roots.keys()))
         arrive = random.choice(self.roots[depart])
-        traci.route.add(f"random_route_{step}_{num}", [depart, arrive])   
-        return f"random_route_{step}_{num}"
+        traci.route.add(f"random_route_{num}", [depart, arrive])   
+        return f"random_route_{num}"
     
     def get_shape(self, intersection):
         shape = []
@@ -116,6 +125,7 @@ class SumoEnv:
     
 
     def set_speed(self):
+        #赤：優先　緑：停止　黄色：SUMO制御車両
         MARGIN = 3
         for lane_id in traci.lane.getIDList():
             vehicles = []
@@ -123,16 +133,22 @@ class SumoEnv:
                 vehicles = traci.lane.getLastStepVehicleIDs(lane_id)
                 for veh in vehicles:
                     traci.vehicle.setSpeed(veh, self.SPEED)
+                continue
             #traci.polygon.setColor(lane_id,(0,0,0,0))
 
-            elif lane_id in list(self.priority.values()):
+            if lane_id in list(self.priority.values()):
                 #print(f"priorityLane:{lane_id}")
                 vehicles = traci.lane.getLastStepVehicleIDs(lane_id)
                 if not vehicles:
                     continue
-                last_veh = vehicles[-1]
-                traci.vehicle.setSpeed(last_veh, self.SPEED)
-                traci.vehicle.setColor(last_veh, (255,0,0))
+                for veh in vehicles:
+                    if veh == vehicles[-1]:
+                        traci.vehicle.setSpeed(veh, self.SPEED)
+                        traci.vehicle.setSpeedMode(veh, 7)
+                        traci.vehicle.setColor(veh, (255,0,0))
+                    else:
+                        traci.vehicle.setSpeedMode(veh, -1)
+                        traci.vehicle.setColor(veh, (255,255,0))
                 """
                 try:
                     print(f"set polygon color {lane_id}")
@@ -145,13 +161,17 @@ class SumoEnv:
                 vehicles = traci.lane.getLastStepVehicleIDs(lane_id)
                 if not vehicles:
                     continue
-                last_veh = vehicles[-1]
-                dist = traci.lane.getLength(lane_id) - traci.vehicle.getLanePosition(last_veh)
-                if dist <= MARGIN:
-                    traci.vehicle.setSpeed(last_veh,0)
-                    traci.vehicle.setColor(last_veh, (0,255,0))
+                for veh in vehicles:
+                    if veh == vehicles[-1]:
+                        dist = traci.lane.getLength(lane_id) - traci.vehicle.getLanePosition(veh)
+                        if dist <= MARGIN:
+                            traci.vehicle.setSpeed(veh, 0)
+                            traci.vehicle.setColor(veh, (0,255,0))
+                    else:
+                        traci.vehicle.setSpeedMode(veh, -1)
+                        traci.vehicle.setColor(veh, (255,255,0))
 
-    def get_state(self, intersection):
+    def get_state(self, intersection, prev_a):
         #各車線の特徴量ベクトル
         #流入車線：[車両密度,平均待ち時間,平均速度]
         #流出車線：[車両密度,平均待ち時間,平均速度]
@@ -173,9 +193,10 @@ class SumoEnv:
                 if dis <= obs_len:
                     in_target_veh.append(veh)
             if len(in_target_veh) > 0:
+                
                 #車両密度
-                state.append(len(in_target_veh)*5 / obs_len)
-
+                state.append(len(in_target_veh)*7 / obs_len)
+                """
                 vel = 0
                 wait = 0
                 for veh in in_target_veh:
@@ -185,10 +206,14 @@ class SumoEnv:
                 state.append(wait / len(in_target_veh))
                 #平均速度
                 state.append((vel / len(in_target_veh)) / self.SPEED)
+                """
             #print(f"incoming-{i}-state:{in_state[i]}")
             else:
+                state.append(0)
+                """
                 for _ in range(3):
                     state.append(0)
+                """
         
         #流出車線
         for edgeID in self.lane_dict[intersection]["outgoing"]:
@@ -201,9 +226,10 @@ class SumoEnv:
                 if dis <= obs_len:
                     out_target_veh.append(veh)
             if len(out_target_veh) > 0:
+                #print(len(out_target_veh))
                 #車両密度
-                state.append(len(out_target_veh)*5 / obs_len)
-
+                state.append((len(out_target_veh)+2)*7 / obs_len)
+                """
                 vel = 0
                 wait = 0
                 for veh in out_target_veh:
@@ -213,28 +239,42 @@ class SumoEnv:
                 state.append(wait / len(out_target_veh))
                 #平均速度
                 state.append((vel / len(out_target_veh)) / self.SPEED)
+                """
             #print(f"outgoing-{i}-state:{out_state[i]}")
             else:
+                state.append(0)
+                """
                 for _ in range(3):
                     state.append(0)
+                    """
+        a_onehot = [0,0,0,0]
+        a_onehot[prev_a] = 1
+        for a in a_onehot:
+            state.append(a)
         #print(f"{intersection}_state: {state}")
 
         return state
 
     def done_check(self, current_time):
-        vehicles = traci.vehicle.getIDList()
         # タイムアップ
         if current_time >= self.time_limit:
             return True
-        # 車が全て停止（速度 < 0.1）していれば終了
-        if len(vehicles) == 0:
+        # 全車両終了
+        if traci.simulation.getMinExpectedNumber() == 0:
             return True
-        for veh in vehicles:
-            if traci.vehicle.getSpeed(veh) >= 0.1:
-                return False  # まだ動いている車がある -> 継続
-        return True  # 全車停止 -> 終了
+        return False
+
+    def get_reward(self, intersection, teleport_vehicles):
+        teleport_num = 0
+        for veh in teleport_vehicles:
+            edge_id = traci.vehicle.getRoadID(veh)
+            if edge_id in self.lane_dict[intersection]["outgoing"]:
+                    teleport_num += 1
+        return teleport_num
+                
 
     def step(self, actions, rewards, states):
+        teleport_vehicles = []
         done_count = 0
         for intersection in self.intersections:
             priority_edge = self.lane_dict[intersection]["incoming"][actions[intersection]]
@@ -243,40 +283,28 @@ class SumoEnv:
         #print("pritority", self.priority)
         self.set_speed()
         reward_sum = {i: 0.0 for i in self.intersections}
-        state_sum = {i: np.zeros(len(self.get_state(i))) for i in self.intersections}
+        state_sum = {i: np.zeros(len(self.get_state(i, actions[i]))) for i in self.intersections}
         for i in range(self.step_num):
+            #テレポート後の車両に速度付与して配列初期化
+            for veh in teleport_vehicles:
+                traci.vehicle.setSpeed(veh, self.SPEED)
+            teleport_vehicles = []
             traci.simulationStep()
             current_time = traci.simulation.getTime()
-            veh_rate = random.random() * 3
-            veh_num = int(veh_rate)
-            for j in range(veh_num):
-                if random.random() < self.block_veh_rate:
-                    vtype = "block_car"
-                    #print("block")
-                else:
-                    vtype = "normal_car"
-                    #print("normal")
-                self.make_vehicle(f"vehicle_{current_time}_{j}", self.make_random_route(current_time, j), current_time, vtype)
-
+            teleport_vehicles = traci.simulation.getEndingTeleportIDList()
             for intersection in self.intersections:
-                throuput = 0
-                for detector in self.detect_dict[intersection]:
-                    throuput += traci.lanearea.getLastStepVehicleNumber(detector)
-                reward_sum[intersection] += throuput
-                state_sum[intersection] += self.get_state(intersection)
-            
-            done_frag = self.done_check(current_time)
-            if done_frag:
-                done_count += 1
+                reward_sum[intersection] += self.get_reward(intersection, teleport_vehicles)
+                state_sum[intersection] += self.get_state(intersection, actions[intersection])
+        done = self.done_check(current_time)
         for i in self.intersections:
-            rewards[i] = reward_sum[i] / self.step_num + 0.1
+            #10ステップでのテレポート回数と時間罰則
+            if current_time < 500:
+                rewards[i] = -reward_sum[i] - 0.1
+            else:
+                rewards[i] = -reward_sum[i] - 0.3
             states[i] = state_sum[i] / self.step_num
         #print("rewards",rewards)
         #print("states", states)
-        if done_count == self.step_num:
-            done = True
-        else:
-            done = False
         #print("done", done)
         
         return rewards, states, done
