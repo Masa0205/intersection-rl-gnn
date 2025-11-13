@@ -1,5 +1,5 @@
 <additional>
-    <vType id="block_car" jmIgnoreJunctionFoeProb="1" />
+    <vType id="block_car" jmIgnoreKeepClearTime="10" />
 
     <vType id="normal_car" />
            
