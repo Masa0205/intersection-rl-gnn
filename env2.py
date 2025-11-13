@@ -34,6 +34,7 @@ class SumoEnv:
         self.polygon_dict = []
         self.time_limit = 3600 
         self.block_veh_rate = 0.5
+        self.obs_len = 50
         self.priority = {}
         self.intersections = ["gneJ41", "gneJ4", "gneJ5", "gneJ42"]
         #各交差点の侵入、流出レーン辞書定義
@@ -51,7 +52,7 @@ class SumoEnv:
                 "incoming": incoming,
                 "outgoing": outgoing
             }
-        print("lane_dict:", self.lane_dict)
+        #print("lane_dict:", self.lane_dict)
         #初期優先権
         for intersection in self.intersections:
             priority_edge = random.choice(self.lane_dict[intersection]["incoming"])
@@ -91,9 +92,20 @@ class SumoEnv:
             sumoBinary = os.path.join(os.environ['SUMO_HOME'], 'bin/sumo-gui')
         else:
             sumoBinary = os.path.join(os.environ['SUMO_HOME'], 'bin/sumo')
-        sumoCmd = [sumoBinary, "-c", "data/intersection.sumocfg"]
+        sumoCmd = [sumoBinary, "-c", "data/intersection.sumocfg", "--time-to-teleport", "-1", "--collision.action", "none"]
         # ,"--time-to-teleport", "-1"   ,"--ignore-junction-blocker", "0"
         traci.start(sumoCmd)
+
+    def get_internal(self):
+        lanes = traci.lane.getIDList()
+        for intersection in self.lane_dict.keys():
+            internals = []
+            for lane in lanes:
+                if f":{intersection}" in lane:
+                    internals.append(lane)
+            self.lane_dict[intersection]["internal"] = internals
+        #print(f"lane_dict: {self.lane_dict}")
+
 
     
 
@@ -127,6 +139,68 @@ class SumoEnv:
     def set_speed(self):
         #赤：優先　緑：停止　黄色：SUMO制御車両
         MARGIN = 3
+        STOP_THRESHOLD = 20
+
+        for id in traci.lane.getIDList():
+            if ":" in id:
+                    vehicles = traci.lane.getLastStepVehicleIDs(id)
+                    for veh in vehicles:
+                        traci.vehicle.setSpeed(veh, self.SPEED)
+                        traci.vehicle.setSpeedMode(veh, 7)
+                        traci.vehicle.setColor(veh, (255,255,255))
+                        #
+                #traci.polygon.setColor(lane_id,(0,0,0,0))
+
+        for intersection, priority_lane in self.priority.items():
+            for lane in self.lane_dict[intersection]["incoming"]:
+                lane_id = f"{lane}_0"
+                vehicles = []
+                
+
+                if lane_id == priority_lane:
+                    #print(f"priorityLane:{lane_id}")
+                    vehicles = traci.lane.getLastStepVehicleIDs(lane_id)
+                    if not vehicles:
+                        continue
+                    for veh in vehicles:
+                        if veh == vehicles[-1]:
+                            traci.vehicle.setSpeed(veh, self.SPEED)
+                            traci.vehicle.setSpeedMode(veh, -1)
+                            traci.vehicle.setColor(veh, (255,0,0))
+                        else:
+                            traci.vehicle.setSpeedMode(veh, -1)
+                            traci.vehicle.setColor(veh, (255,255,0))
+                    """
+                    try:
+                        print(f"set polygon color {lane_id}")
+                        traci.polygon.setColor(lane_id,(0,255,0,150))
+                        traci.polygon.setFilled(lane_id, True)
+                    except traci.TraCIException as e:
+                        print(e)
+                    """
+                else:
+                    vehicles = traci.lane.getLastStepVehicleIDs(lane_id)
+                    if not vehicles:
+                        continue
+                    for veh in vehicles:
+                        if veh == vehicles[-1]:
+                            dist = traci.lane.getLength(lane_id) - traci.vehicle.getLanePosition(veh)
+                            if dist <= MARGIN:
+                                traci.vehicle.setSpeed(veh, 0)
+                                traci.vehicle.setColor(veh, (0,255,0))
+                            elif dist <= STOP_THRESHOLD:
+                                # 停止線に近いがまだ余裕がある -> 徐行で詰める (例: 2m/s)
+                                # これをしないと、勢いよく突っ込んできて止まりきれない
+                                traci.vehicle.setSpeed(veh, 2.0) 
+                                traci.vehicle.setSpeedMode(veh, 1) 
+                                traci.vehicle.setColor(veh, (0, 255, 128)) # 薄い緑
+                            else:
+                                traci.vehicle.setSpeedMode(veh, -1)
+                                traci.vehicle.setColor(veh, (255,255,0))
+                        else:
+                            traci.vehicle.setSpeedMode(veh, -1)
+                            traci.vehicle.setColor(veh, (255,255,0))
+        """
         for lane_id in traci.lane.getIDList():
             vehicles = []
             if ":" in lane_id:
@@ -149,7 +223,8 @@ class SumoEnv:
                     else:
                         traci.vehicle.setSpeedMode(veh, -1)
                         traci.vehicle.setColor(veh, (255,255,0))
-                """
+        """
+        """
                 try:
                     print(f"set polygon color {lane_id}")
                     traci.polygon.setColor(lane_id,(0,255,0,150))
@@ -157,6 +232,7 @@ class SumoEnv:
                 except traci.TraCIException as e:
                     print(e)
                 """
+        """
             else:
                 vehicles = traci.lane.getLastStepVehicleIDs(lane_id)
                 if not vehicles:
@@ -167,35 +243,65 @@ class SumoEnv:
                         if dist <= MARGIN:
                             traci.vehicle.setSpeed(veh, 0)
                             traci.vehicle.setColor(veh, (0,255,0))
+                        elif dist <= STOP_THRESHOLD:
+                            # 停止線に近いがまだ余裕がある -> 徐行で詰める (例: 2m/s)
+                            # これをしないと、勢いよく突っ込んできて止まりきれない
+                            traci.vehicle.setSpeed(veh, 2.0) 
+                            traci.vehicle.setSpeedMode(veh, 1) 
+                            traci.vehicle.setColor(veh, (0, 255, 128)) # 薄い緑
+                        else:
+                            traci.vehicle.setSpeedMode(veh, -1)
+                            traci.vehicle.setColor(veh, (255,255,0))
                     else:
                         traci.vehicle.setSpeedMode(veh, -1)
                         traci.vehicle.setColor(veh, (255,255,0))
+        """
+
+    def get_targetVeh(self, intersection):
+        jx, jy = traci.junction.getPosition(intersection)
+        
+        in_target = {i: [] for i in self.lane_dict[intersection]["incoming"]}
+        out_target = {i: [] for i in self.lane_dict[intersection]["outgoing"]}
+        internal_veh = []
+        for edgeID in self.lane_dict[intersection]["incoming"]:
+            in_vehicles = traci.edge.getLastStepVehicleIDs(edgeID)
+            for veh in in_vehicles:
+                x, y = traci.vehicle.getPosition(veh)
+                dis = np.sqrt((x - jx)**2 + (y - jy)**2)
+                if dis <= self.obs_len:
+                    in_target[edgeID].append(veh)
+            
+
+        for edgeID in self.lane_dict[intersection]["outgoing"]:
+            out_vehicles = traci.edge.getLastStepVehicleIDs(edgeID)
+            for veh in out_vehicles:
+                
+                x, y = traci.vehicle.getPosition(veh)
+                dis = np.sqrt((x - jx)**2 + (y - jy)**2)
+                if dis <= self.obs_len:
+                    out_target[edgeID].append(veh)
+        in_vs = []
+        for lane in self.lane_dict[intersection]["internal"]:
+            in_vs = traci.lane.getLastStepVehicleIDs(lane)
+            for v in in_vs:
+                internal_veh.append(v)
+
+        return in_target, out_target, internal_veh
+
 
     def get_state(self, intersection, prev_a):
         #各車線の特徴量ベクトル
         #流入車線：[車両密度,平均待ち時間,平均速度]
         #流出車線：[車両密度,平均待ち時間,平均速度]
-        obs_len = 30
-        
-        
-        jx, jy = traci.junction.getPosition(intersection)
         state = []
-        in_vehicles = []
-        out_target_veh = []
-        #流入車線
-        for edgeID in self.lane_dict[intersection]["incoming"]:
-            in_vehicles = traci.edge.getLastStepVehicleIDs(edgeID)
-            in_target_veh = []
-            for veh in in_vehicles:
-                
-                x, y = traci.vehicle.getPosition(veh)
-                dis = np.sqrt((x - jx)**2 + (y - jy)**2)
-                if dis <= obs_len:
-                    in_target_veh.append(veh)
+        in_target, out_target, internal_veh = self.get_targetVeh(intersection)
+        for edge in in_target.keys():
+            #流入車線
+            in_target_veh = in_target[edge]
             if len(in_target_veh) > 0:
                 
                 #車両密度
-                state.append(len(in_target_veh)*7 / obs_len)
+                state.append(len(in_target_veh)*7.5 / self.obs_len)
                 """
                 vel = 0
                 wait = 0
@@ -214,21 +320,13 @@ class SumoEnv:
                 for _ in range(3):
                     state.append(0)
                 """
-        
-        #流出車線
-        for edgeID in self.lane_dict[intersection]["outgoing"]:
-            out_vehicles = traci.edge.getLastStepVehicleIDs(edgeID)
-            out_target_veh = []
-            for veh in out_vehicles:
-                
-                x, y = traci.vehicle.getPosition(veh)
-                dis = np.sqrt((x - jx)**2 + (y - jy)**2)
-                if dis <= obs_len:
-                    out_target_veh.append(veh)
+        for edge in out_target.keys():
+            #流出車線
+            out_target_veh = out_target[edge]
             if len(out_target_veh) > 0:
                 #print(len(out_target_veh))
                 #車両密度
-                state.append((len(out_target_veh)+2)*7 / obs_len)
+                state.append(len(out_target_veh)*7.5 / self.obs_len)
                 """
                 vel = 0
                 wait = 0
@@ -258,51 +356,88 @@ class SumoEnv:
     def done_check(self, current_time):
         # タイムアップ
         if current_time >= self.time_limit:
-            return True
+            return "TimeOver"
+        
+        #グリッドロック検知
+        for intersection in self.lane_dict.keys():
+            in_target_veh, out_target_veh, internal_veh = self.get_targetVeh(intersection)
+            for veh in internal_veh:
+                if traci.vehicle.getWaitingTime(veh) >= 100:
+                    return intersection
+
         # 全車両終了
         if traci.simulation.getMinExpectedNumber() == 0:
-            return True
-        return False
+            return "Clear"
+        return "Continue"
 
-    def get_reward(self, intersection, teleport_vehicles):
-        teleport_num = 0
-        for veh in teleport_vehicles:
-            edge_id = traci.vehicle.getRoadID(veh)
-            if edge_id in self.lane_dict[intersection]["outgoing"]:
-                    teleport_num += 1
-        return teleport_num
+    def get_reward(self, reward_sum):
+        
+        for intersection in reward_sum.keys():
+            in_target, out_target, internal_veh = self.get_targetVeh(intersection)
+            #交差点内停止車両検知
+            block_num = 0
+            for veh in internal_veh:
+                if  traci.vehicle.getSpeed(veh) < 0.1:
+                    block_num += 1
+            reward_sum[intersection]["block_num"] += block_num
+            #待機時間計算(1台当たり)
+            wait = 0
+            count = 0
+            for edge in in_target.keys():
+                in_target_veh = in_target[edge]
+                if len(in_target_veh) > 0:
+                    for veh in in_target_veh:
+                        wait += traci.vehicle.getWaitingTime(veh)
+                        count += 1
+            if count == 0:
+                wait_av = 0
+            else:
+                wait_av = wait / count
+            reward_sum[intersection]["wait_time"] += wait_av
+        
+        return reward_sum
                 
 
     def step(self, actions, rewards, states):
-        teleport_vehicles = []
-        done_count = 0
+        reward_sum = {}
+        done = False
         for intersection in self.intersections:
             priority_edge = self.lane_dict[intersection]["incoming"][actions[intersection]]
             priority_lane = f"{priority_edge}_0"
             self.priority[intersection] = priority_lane
         #print("pritority", self.priority)
-        self.set_speed()
-        reward_sum = {i: 0.0 for i in self.intersections}
+        for intersection in self.intersections:
+            reward_sum[intersection] = {
+                "block_num": 0.0,
+                "wait_time": 0.0 
+            }
         state_sum = {i: np.zeros(len(self.get_state(i, actions[i]))) for i in self.intersections}
         for i in range(self.step_num):
-            #テレポート後の車両に速度付与して配列初期化
-            for veh in teleport_vehicles:
-                traci.vehicle.setSpeed(veh, self.SPEED)
-            teleport_vehicles = []
+            self.set_speed()
             traci.simulationStep()
             current_time = traci.simulation.getTime()
-            teleport_vehicles = traci.simulation.getEndingTeleportIDList()
-            for intersection in self.intersections:
-                reward_sum[intersection] += self.get_reward(intersection, teleport_vehicles)
-                state_sum[intersection] += self.get_state(intersection, actions[intersection])
-        done = self.done_check(current_time)
+            reward_sum = self.get_reward(reward_sum)
+        #print(f"reward_sum: {reward_sum}")
+        info = self.done_check(current_time)
         for i in self.intersections:
-            #10ステップでのテレポート回数と時間罰則
-            if current_time < 500:
-                rewards[i] = -reward_sum[i] - 0.1
-            else:
-                rewards[i] = -reward_sum[i] - 0.3
-            states[i] = state_sum[i] / self.step_num
+            rewards[i] = - ( reward_sum[i]["block_num"]*0.1 + reward_sum[i]["wait_time"]*0.005 ) / self.step_num
+        if info == "TimeOver":
+            for i in self.intersections:
+                rewards[i] -= 50
+            done = True
+        elif info in self.intersections:
+            for i in self.intersections:
+                if i == info:
+                    rewards[i] -= 100
+                else:
+                    rewards[i] -= 50
+            done = True
+        elif info == "Clear":
+            for i in self.intersections:
+                rewards[i] += 50
+            done = True
+        for intersection in self.intersections:
+            states[intersection] = self.get_state(intersection, actions[intersection])
         #print("rewards",rewards)
         #print("states", states)
         #print("done", done)

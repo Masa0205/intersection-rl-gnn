@@ -13,7 +13,7 @@ import json
 
 def main():
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    episodes = 5000
+    episodes = 300
     rollout_interval = 50
     print_interval = 10
     intersections = env.intersections
@@ -26,7 +26,7 @@ def main():
     print_r = {}
     print_loss = {}
     random.seed(42)
-    vehicle_num = 1000
+    vehicle_num = 500
     #交差点の数だけエージェントインスタンス化
     for intersection in intersections:
         agents[intersection] = Agent(id=intersection,lane_info=lane_dict[intersection])
@@ -38,7 +38,7 @@ def main():
             states = {}
             next_states = {}
             actions = {i: random.randint(0,3) for i in intersections}
-            print(actions)
+            #print(actions)
             rewards = {}
             r_sum = {i: 0.0 for i in intersections}
             loss_sum = {i: 0.0 for i in intersections}
@@ -46,6 +46,7 @@ def main():
             done = False
             step = 0
             env.reset()
+            env.get_internal()
             #sumo.get_shape()
             #grid_frag = False
             #車両生成
@@ -62,7 +63,7 @@ def main():
                 
                 for id, agent in agents.items():
                     actions[id] = agent.get_action(states[id])
-
+                
                 rewards, next_states, done = env.step(actions, rewards, next_states)
                 for id, agent in agents.items():
                     agent.buffer.rewards.append(rewards[id])
