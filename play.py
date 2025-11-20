@@ -39,6 +39,7 @@ def main():
         step = 0
         vehicle_num = 1000
         env.reset(is_gui)
+        env.get_internal()
         #sumo.get_shape()
         #grid_frag = False
         
@@ -55,11 +56,11 @@ def main():
             
             for id, agent in agents.items():
                 actions[id] = agent.get_action(states[id], play=True)
-
+            print(f"actions: {actions}")
             rewards, next_states, done = env.step(actions, rewards, next_states)
-            for id, agent in agents.items():
-                r_sum[id] += rewards[id]
-                states[id] = next_states[id]
+            for intersection in intersections:
+                r_sum[intersection] += rewards[intersection]
+                states[intersection] = next_states[intersection]
             if done == True:
                 t_total += traci.simulation.getTime()
             
