@@ -194,9 +194,9 @@ class Agent:
         #print("loss", loss)
         return loss.mean().item()
 
-    def save(self, id, timestamp):
-        actor_path = f"trained_model/actor_{id}_{timestamp}.pth"
-        critic_path = f"trained_model/critic_{id}_{timestamp}.pth"
+    def save(self, id, timestamp, episode):
+        actor_path = f"trained_model/actor_{id}_{timestamp}_{episode}.pth"
+        critic_path = f"trained_model/critic_{id}_{timestamp}_{episode}.pth"
         torch.save(self.actor.state_dict(), actor_path)
         torch.save(self.critic.state_dict(), critic_path)
         print(f"{id}:モデルを保存しました")
