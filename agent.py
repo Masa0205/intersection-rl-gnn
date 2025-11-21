@@ -204,6 +204,7 @@ class Agent:
     def load(self, id, date):
         actor_path = f"trained_model/actor_{id}_{date}.pth"
         critic_path = f"trained_model/critic_{id}_{date}.pth"
+        #CPUでの再現用: map_location=torch.device('cpu')
         self.actor.load_state_dict(torch.load(actor_path))
         self.critic.load_state_dict(torch.load(critic_path))
         print(f"{id}:モデルを読み込みました")
