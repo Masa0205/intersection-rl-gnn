@@ -1,0 +1,27 @@
+<routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
+
+    <vType id="car" accel="2.6" decel="4.5" sigma="0.5" length="5.0" minGap="2.5" maxSpeed="55.55"/>
+
+    <route id="route_S_N_Left" edges="gneE4 gneE56 gneE63"/>
+    <route id="route_S_N_Right" edges="-gneE60 -gneE58 gneE62"/>
+    <route id="route_N_S_Left" edges="-gneE63 -gneE56 -gneE4"/>
+    <route id="route_N_S_Right" edges="-gneE62 gneE58 gneE60"/>
+    <route id="route_W_E_Bottom" edges="gneE17 gneE5 gneE65"/>
+    <route id="route_W_E_Top" edges="-gneE64 gneE57 gneE61"/>
+    <route id="route_E_W_Bottom" edges="-gneE65 -gneE5 -gneE17"/>
+    <route id="route_E_W_Top" edges="-gneE61 -gneE57 gneE64"/>
+
+    <routeDistribution id="random_routes">
+        <route refId="route_S_N_Left"   probability="1"/>
+        <route refId="route_S_N_Right"  probability="1"/>
+        <route refId="route_N_S_Left"   probability="1"/>
+        <route refId="route_N_S_Right"  probability="1"/>
+        <route refId="route_W_E_Bottom" probability="1"/>
+        <route refId="route_W_E_Top"    probability="1"/>
+        <route refId="route_E_W_Bottom" probability="1"/>
+        <route refId="route_E_W_Top"    probability="1"/>
+    </routeDistribution>
+
+    <flow id="mixed_traffic" type="car" route="random_routes" begin="0" end="3600" probability="0.2" />
+
+</routes>

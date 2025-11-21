@@ -48,6 +48,7 @@ def main():
             step = 0
             env.reset()
             env.get_internal()
+            env.get_pair()
             #sumo.get_shape()
             #grid_frag = False
             #車両生成

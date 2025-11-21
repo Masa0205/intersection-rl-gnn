@@ -7,7 +7,7 @@
 
     <input>
         <net-file value="intersection.net.xml"/>
-
+        <route-files value="intersection.rou.xml"/>
         <additional-files value="vtype.add.xml,detector.add.xml"/>
         
     </input>

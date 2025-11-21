@@ -15,15 +15,6 @@ class SumoEnv:
             sys.path.append(tools)
         else:
             sys.exit("please declare environment variable 'SUMO_HOME'")
-        
-        self.roots = {"-gneE64": ["gneE61"],
-                      "gneE17": ["gneE65"],
-                      "gneE4": ["gneE63"],
-                      "-gneE60": ["gneE62"],
-                      "-gneE65": ["-gneE17"],
-                      "-gneE61": ["gneE64"],
-                      "-gneE62": ["gneE60"],
-                      "-gneE63": ["-gneE4"]}
 
         self.SPEED = 10
         self.DISTANCE = self.SPEED * 10
@@ -53,6 +44,8 @@ class SumoEnv:
                 "outgoing": outgoing
             }
         #print("lane_dict:", self.lane_dict)
+
+        
         #初期優先権
         for intersection in self.intersections:
             priority_edge = random.choice(self.lane_dict[intersection]["incoming"])
@@ -64,7 +57,32 @@ class SumoEnv:
             "gneJ5":["e2Detector_-gneE5_0_9", "e2Detector_gneE60_0_10", "e2Detector_gneE65_0_11", "e2Detector_-gneE58_0_8"],
             "gneJ42": ["e2Detector_-gneE57_0_4", "e2Detector_gneE58_0_7", "e2Detector_gneE61_0_6", "e2Detector_gneE62_0_5"]
         }
-        
+    
+    def get_pair(self):
+        self.pair_dict = {}
+        for intersection, value in self.lane_dict.items():
+            self.pair_dict[intersection] = {}
+            for edge in value["incoming"]:
+                lane_count = traci.edge.getLaneNumber(edge)
+                for i in range(lane_count):
+                    in_lane_id = f"{edge}_{i}"
+                    
+                    # 【重要】このレーンからの接続先（リンク）を取得
+                    # links = [(connectedLaneID, isOpen, hasPrio, isFoe), ...]
+                    links = traci.lane.getLinks(in_lane_id)
+                    
+                    pair_lanes = []
+                    for link in links:
+                        out_lane_id = link[0] # 0番目の要素が接続先のレーンID
+                        
+                        # Uターンを除外したい場合（オプション）
+                        # 接続先のエッジが、流入エッジの反対方向なら除外する等の処理が可能
+                        # if out_lane_id.startswith(edge): continue 
+
+                        pair_lanes.append(out_lane_id)
+                self.pair_dict[intersection][in_lane_id] = pair_lanes
+        print(f"pair_dict: {self.pair_dict}")
+
        
     def define_polygon(self):
         for lane in traci.lane.getIDList():
@@ -87,7 +105,7 @@ class SumoEnv:
             except traci.TraCIException as e:
                 print(e)
     
-    def reset(self, is_gui=False):
+    def reset(self, is_gui=True):
         if is_gui:
             sumoBinary = os.path.join(os.environ['SUMO_HOME'], 'bin/sumo-gui')
         else:
@@ -119,14 +137,14 @@ class SumoEnv:
             #print("normal")
         """
         vtype = "block_car"
-        traci.vehicle.add(vehID, self.make_random_route(i), depart=depart_time, typeID=vtype, departLane="best")
+        traci.vehicle.add(vehID, routeID="random_routes", depart=depart_time, typeID=vtype, departLane="best")
         traci.vehicle.setSpeed(vehID, self.SPEED)
         traci.vehicle.setMaxSpeed(vehID, self.SPEED)
     
     def make_random_route(self, num):
         depart = random.choice(list(self.roots.keys()))
         arrive = random.choice(self.roots[depart])
-        traci.route.add(f"random_route_{num}", [depart, arrive])   
+        traci.route.add(f"random_route_{num}", [depart, arrive])
         return f"random_route_{num}"
     
     def get_shape(self, intersection):
@@ -282,8 +300,8 @@ class SumoEnv:
 
     def get_state(self, intersection, prev_a):
         #各車線の特徴量ベクトル
-        #流入車線：[車両密度,平均待ち時間,平均速度]
-        #流出車線：[車両密度,平均待ち時間,平均速度]
+        #流入車線：3セグメント毎の車両数
+        #流出車線：全体の車両数
         state = []
         in_target, out_target, internal_veh = self.get_targetVeh(intersection)
         for edge in in_target.keys():
@@ -356,15 +374,15 @@ class SumoEnv:
         return "Continue"
 
     def get_reward(self, i):
-        intersection_press = 0
-        in_target, out_target, internal_veh = self.get_targetVeh(i)
-        in_press = 0
-        out_press = 0
-        for edge in in_target.keys():
-            in_press += len(in_target[edge])
-        for edge in out_target.keys():
-            out_press += len(out_target[edge])
-        intersection_press = in_press - out_press
+        #ペアごとにin,outのキャパシティ算出→それぞれ車両数取得後正規化→|in - out|でプレッシャー計算
+        VMAX = 13
+        pairs = self.pair_dict[i]
+        for in_lane in pairs:
+            in_press = traci.lane.getLastStepVehicleNumber(in_lane) / 13
+            
+            for out_lane in pairs[in_lane]:
+                
+    
         return intersection_press
 
         """
