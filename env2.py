@@ -34,7 +34,7 @@ class SumoEnv:
         self.polygon_dict = []
         self.time_limit = 3600 
         self.block_veh_rate = 0.5
-        self.obs_len = 50
+        self.obs_len = 30
         self.priority = {}
         self.intersections = ["gneJ41", "gneJ4", "gneJ5", "gneJ42"]
         #各交差点の侵入、流出レーン辞書定義
@@ -264,22 +264,13 @@ class SumoEnv:
         out_target = {i: [] for i in self.lane_dict[intersection]["outgoing"]}
         internal_veh = []
         for edgeID in self.lane_dict[intersection]["incoming"]:
-            in_vehicles = traci.edge.getLastStepVehicleIDs(edgeID)
-            for veh in in_vehicles:
-                x, y = traci.vehicle.getPosition(veh)
-                dis = np.sqrt((x - jx)**2 + (y - jy)**2)
-                if dis <= self.obs_len:
-                    in_target[edgeID].append(veh)
+            in_target[edgeID] = traci.edge.getLastStepVehicleIDs(edgeID)
             
 
         for edgeID in self.lane_dict[intersection]["outgoing"]:
-            out_vehicles = traci.edge.getLastStepVehicleIDs(edgeID)
-            for veh in out_vehicles:
-                
-                x, y = traci.vehicle.getPosition(veh)
-                dis = np.sqrt((x - jx)**2 + (y - jy)**2)
-                if dis <= self.obs_len:
-                    out_target[edgeID].append(veh)
+            out_target[edgeID] = traci.edge.getLastStepVehicleIDs(edgeID)
+            
+    
         in_vs = []
         for lane in self.lane_dict[intersection]["internal"]:
             in_vs = traci.lane.getLastStepVehicleIDs(lane)
@@ -296,37 +287,31 @@ class SumoEnv:
         state = []
         in_target, out_target, internal_veh = self.get_targetVeh(intersection)
         for edge in in_target.keys():
+            edge_length = traci.lane.getLength(f"{edge}_0")
+            obs_len = edge_length / 3
+            queue1 = 0
+            queue2 = 0
+            queue3 = 0
             #流入車線
             in_target_veh = in_target[edge]
-            if len(in_target_veh) > 0:
+            #車両密度
+            for veh in in_target_veh:
+                if traci.vehicle.getLanePosition(veh) < obs_len:
+                    queue1 += 1
+                elif traci.vehicle.getLanePosition(veh) < obs_len * 2:
+                    queue2 += 1
+                else: 
+                    queue3 += 1
+            state.extend([queue1, queue2, queue3])
                 
-                #車両密度
-                state.append(len(in_target_veh)*7.5 / self.obs_len)
-                """
-                vel = 0
-                wait = 0
-                for veh in in_target_veh:
-                    vel += traci.vehicle.getSpeed(veh)
-                    wait += traci.vehicle.getWaitingTime(veh)
-                #平均待ち時間
-                state.append(wait / len(in_target_veh))
-                #平均速度
-                state.append((vel / len(in_target_veh)) / self.SPEED)
-                """
-            #print(f"incoming-{i}-state:{in_state[i]}")
-            else:
-                state.append(0)
-                """
-                for _ in range(3):
-                    state.append(0)
-                """
+                
         for edge in out_target.keys():
             #流出車線
             out_target_veh = out_target[edge]
             if len(out_target_veh) > 0:
                 #print(len(out_target_veh))
                 #車両密度
-                state.append(len(out_target_veh)*7.5 / self.obs_len)
+                state.append(len(out_target_veh))
                 """
                 vel = 0
                 wait = 0
@@ -370,8 +355,19 @@ class SumoEnv:
             return "Clear"
         return "Continue"
 
-    def get_reward(self, reward_sum):
-        
+    def get_reward(self, i):
+        intersection_press = 0
+        in_target, out_target, internal_veh = self.get_targetVeh(i)
+        in_press = 0
+        out_press = 0
+        for edge in in_target.keys():
+            in_press += len(in_target[edge])
+        for edge in out_target.keys():
+            out_press += len(out_target[edge])
+        intersection_press = in_press - out_press
+        return intersection_press
+
+        """
         for intersection in reward_sum.keys():
             in_target, out_target, internal_veh = self.get_targetVeh(intersection)
             #交差点内停止車両検知
@@ -396,6 +392,7 @@ class SumoEnv:
             reward_sum[intersection]["wait_time"] += wait_av
         
         return reward_sum
+        """
                 
 
     def step(self, actions, rewards, states):
@@ -416,11 +413,14 @@ class SumoEnv:
             self.set_speed()
             traci.simulationStep()
             current_time = traci.simulation.getTime()
-            reward_sum = self.get_reward(reward_sum)
+            #reward_sum = self.get_reward(reward_sum)
         #print(f"reward_sum: {reward_sum}")
-        info = self.done_check(current_time)
+        #reward
         for i in self.intersections:
-            rewards[i] = - ( reward_sum[i]["block_num"]*0.1 + reward_sum[i]["wait_time"]*0.005 ) / self.step_num
+            rewards[i] = - self.get_reward(i)
+        #done_reward
+        info = self.done_check(current_time)
+        
         if info == "TimeOver":
             for i in self.intersections:
                 rewards[i] -= 50
@@ -436,10 +436,11 @@ class SumoEnv:
             for i in self.intersections:
                 rewards[i] += 50
             done = True
+        
         for intersection in self.intersections:
             states[intersection] = self.get_state(intersection, actions[intersection])
-        #print("rewards",rewards)
-        #print("states", states)
+        print("rewards",rewards)
+        print("states", states)
         #print("done", done)
         
         return rewards, states, done

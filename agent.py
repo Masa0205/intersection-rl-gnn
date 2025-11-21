@@ -97,7 +97,7 @@ class Agent:
 
         self.id = id
         self.lane_info = lane_info
-        self.state_dim = 12
+        self.state_dim = 20
         
         self.action_size = len(self.lane_info["incoming"])
         #print("s&a",self.state_dim, self.action_size)

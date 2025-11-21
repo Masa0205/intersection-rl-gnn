@@ -13,9 +13,10 @@ import json
 
 def main():
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    episodes = 300
+    episodes = 1
     rollout_interval = 50
     print_interval = 10
+    save_interval = 1000
     intersections = env.intersections
     lane_dict = env.lane_dict
     agents = {}
@@ -87,15 +88,18 @@ def main():
                 t_totals.append(t_total / print_interval)
                 print(f"eps: {episode} r: {print_r} loss: {print_loss} t: {t_total / print_interval}")
                 t_total = 0
+            if episode % save_interval == 0:
+                for id, agent in agents.items():
+                    agent.save(id, timestamp, episode)
             traci.close()
         r_graph(r_total, timestamp)
         loss_graph(loss_total, timestamp)
         t_graph(t_totals, timestamp)
         for id, agent in agents.items():
-            agent.save(id, timestamp)
+            agent.save(id, timestamp, episode=episodes)
     except TimeoutError as e:
         r_graph(r_total, timestamp)
-        loss_graph(loss_total, timestamp)
+        loss_graph(loss_total, timestamp, episode)
         t_graph(t_totals, timestamp)
         for id, agent in agents.items():
             agent.save(id, timestamp)
