@@ -81,7 +81,7 @@ class SumoEnv:
 
                         pair_lanes.append(out_lane_id)
                 self.pair_dict[intersection][in_lane_id] = pair_lanes
-        print(f"pair_dict: {self.pair_dict}")
+        #print(f"pair_dict: {self.pair_dict}")
 
        
     def define_polygon(self):
@@ -105,7 +105,7 @@ class SumoEnv:
             except traci.TraCIException as e:
                 print(e)
     
-    def reset(self, is_gui=True):
+    def reset(self, is_gui=False):
         if is_gui:
             sumoBinary = os.path.join(os.environ['SUMO_HOME'], 'bin/sumo-gui')
         else:
@@ -376,12 +376,14 @@ class SumoEnv:
     def get_reward(self, i):
         #ペアごとにin,outのキャパシティ算出→それぞれ車両数取得後正規化→|in - out|でプレッシャー計算
         VMAX = 13
+        intersection_press = 0
         pairs = self.pair_dict[i]
         for in_lane in pairs:
-            in_press = traci.lane.getLastStepVehicleNumber(in_lane) / 13
+            in_press = traci.lane.getLastStepVehicleNumber(in_lane) / VMAX
             
             for out_lane in pairs[in_lane]:
-                
+                out_press = traci.lane.getLastStepVehicleNumber(out_lane) / VMAX
+                intersection_press += abs(in_press - out_press)
     
         return intersection_press
 
@@ -421,17 +423,11 @@ class SumoEnv:
             priority_lane = f"{priority_edge}_0"
             self.priority[intersection] = priority_lane
         #print("pritority", self.priority)
-        for intersection in self.intersections:
-            reward_sum[intersection] = {
-                "block_num": 0.0,
-                "wait_time": 0.0 
-            }
-        state_sum = {i: np.zeros(len(self.get_state(i, actions[i]))) for i in self.intersections}
         for i in range(self.step_num):
             self.set_speed()
             traci.simulationStep()
-            current_time = traci.simulation.getTime()
             #reward_sum = self.get_reward(reward_sum)
+        current_time = traci.simulation.getTime()
         #print(f"reward_sum: {reward_sum}")
         #reward
         for i in self.intersections:
@@ -441,24 +437,24 @@ class SumoEnv:
         
         if info == "TimeOver":
             for i in self.intersections:
-                rewards[i] -= 50
+                rewards[i] = -50
             done = True
         elif info in self.intersections:
             for i in self.intersections:
                 if i == info:
-                    rewards[i] -= 100
+                    rewards[i] = -100*(self.time_limit - current_time)
                 else:
-                    rewards[i] -= 50
+                    rewards[i] = -50*(self.time_limit - current_time)
             done = True
         elif info == "Clear":
             for i in self.intersections:
-                rewards[i] += 50
+                rewards[i] = 50
             done = True
         
         for intersection in self.intersections:
             states[intersection] = self.get_state(intersection, actions[intersection])
-        print("rewards",rewards)
-        print("states", states)
+        #print("rewards",rewards)
+        #print("states", states)
         #print("done", done)
         
         return rewards, states, done

@@ -13,7 +13,7 @@ import json
 
 def main():
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    episodes = 1
+    episodes = 1000
     rollout_interval = 50
     print_interval = 10
     save_interval = 1000
@@ -42,8 +42,6 @@ def main():
             #print(actions)
             rewards = {}
             r_sum = {i: 0.0 for i in intersections}
-            loss_sum = {i: 0.0 for i in intersections}
-            train_step = 0
             done = False
             step = 0
             env.reset()

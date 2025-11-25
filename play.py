@@ -40,6 +40,7 @@ def main():
         vehicle_num = 1000
         env.reset(is_gui)
         env.get_internal()
+        env.get_pair()
         #sumo.get_shape()
         #grid_frag = False
         
